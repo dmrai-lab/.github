@@ -1,0 +1,49 @@
+name: Guards
+
+# The static guards of this repository's `guards/` package, called by every public repository:
+#   jobs:
+#     guards:
+#       uses: dmrai-lab/.github/.github/workflows/guards.yml@main
+# Stdlib-only Python, seconds on a free runner; no schedule. The guards run at the commit of this workflow file
+# the caller pins (`@main`, or a tag or SHA).
+on:
+  workflow_call:
+    inputs:
+      src:
+        description: "Space-separated package paths for the AST guards (default: detected packages)"
+        type: string
+        default: ""
+      workflows:
+        description: "Space-separated workflow files that collect the tests"
+        type: string
+        default: ".github/workflows/tests.yml"
+      strict-test-dirs:
+        description: "Each test directory must itself be named by a workflow"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: dmrai-lab/.github
+          ref: ${{ github.job_workflow_sha || 'main' }}
+          path: .guards-src
+          sparse-checkout: guards
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run the guards
+        env:
+          GUARDS_SRC: ${{ inputs.src }}
+          GUARDS_WORKFLOWS: ${{ inputs.workflows }}
+          GUARDS_STRICT: ${{ inputs.strict-test-dirs && '--strict-test-dirs' || '' }}
+        run: |
+          PYTHONPATH=.guards-src python -m guards all . --src "$GUARDS_SRC" --workflows "$GUARDS_WORKFLOWS" $GUARDS_STRICT

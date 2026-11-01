@@ -9,8 +9,8 @@ CHECKS = {"private-ids": private_ids, "ci-coverage": ci_coverage,
           "hidden-defaults": hidden_defaults, "history-wording": history_words}
 
 
-def run(name, root, src=(), workflows=ci_coverage.DEFAULT_WORKFLOWS, strict=False):
-    found = CHECKS[name].check(root, src=src, workflows=workflows, strict=strict)
+def run(name, root, src=(), workflows=ci_coverage.DEFAULT_WORKFLOWS):
+    found = CHECKS[name].check(root, src=src, workflows=workflows)
     return found if name == "private-ids" else allow.unallowed(found, root)
 
 
@@ -21,13 +21,12 @@ def main(argv=None):
     ap.add_argument("--src", default="", help="space-separated package paths for the AST guards (default: detected)")
     ap.add_argument("--workflows", default=" ".join(ci_coverage.DEFAULT_WORKFLOWS),
                     help="space-separated workflow files that collect the tests")
-    ap.add_argument("--strict-test-dirs", action="store_true", help="each test directory must itself be named")
     ap.add_argument("--record", metavar="REASON", help="append every finding to .guards-allow with this reason")
     a = ap.parse_args(argv)
     failed = 0
     for name in (CHECKS if a.check == "all" else [a.check]):
         t0 = time.perf_counter()
-        found = run(name, a.root, a.src.split(), a.workflows.split(), a.strict_test_dirs)
+        found = run(name, a.root, a.src.split(), a.workflows.split())
         found = sorted(found)
         if a.record and name != "private-ids":
             print(f"guards: {name}: recorded {allow.record(found, a.root, a.record)} entries", file=sys.stderr)

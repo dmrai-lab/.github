@@ -25,20 +25,30 @@ def test_private_ids_flag_a_hashed_token_and_a_joined_fragment_without_printing_
     assert not any(word in str(f).lower() or "quux" in str(f) for f in found)
 
 
-def test_ci_coverage_names_the_uncollected_directory(tmp_path):
-    _write(tmp_path, {"tests/test_top.py": "", "tests/geometry/test_g.py": "", "tests/math/test_m.py": "",
-                      ".github/workflows/tests.yml": "run: pytest tests/geometry\n"})
-    assert [f.path for f in ci_coverage.check(tmp_path, strict=True)] == ["tests/math"]
-    # a whole-root run covers every directory below it, unless the repository asks for each to be named
-    (tmp_path / ".github/workflows/tests.yml").write_text("run: pytest tests/ -q\n")
+def test_ci_coverage_is_per_file(tmp_path):
+    _write(tmp_path, {"tests/test_a.py": "", "tests/test_b.py": "", "tests/sub/test_c.py": "", "tests/sub/test_d.py": "",
+                      ".github/workflows/tests.yml": "run: pytest tests/test_a.py tests/sub -q\n"})
+    assert [f.path for f in ci_coverage.check(tmp_path)] == ["tests/test_b.py"]
+
+
+def test_ci_coverage_testpaths_bare_pytest_globs_and_ignores(tmp_path):
+    _write(tmp_path, {"pyproject.toml": '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n',
+                      "tests/test_a.py": "", "tests/test_b.py": "", "other/test_c.py": "",
+                      ".github/workflows/tests.yml": 'run: pytest -q -m "not slow" --ignore=tests/test_b.py\n'})
+    assert [f.path for f in ci_coverage.check(tmp_path)] == ["other/test_c.py", "tests/test_b.py"]
+    (tmp_path / ".github/workflows/tests.yml").write_text(
+        "run: pytest -q --ignore=tests/test_b.py \\\n  other tests/test_a.py\nrun: python -m pytest tests/test_[b]*.py\n")
     assert ci_coverage.check(tmp_path) == []
-    assert [f.path for f in ci_coverage.check(tmp_path, strict=True)] == ["tests/geometry", "tests/math"]
+    (tmp_path / ".github/workflows/tests.yml").write_text('P=$(ls tests/test_[a-b].py)\nrun: pytest $P -q\n')
+    assert [f.path for f in ci_coverage.check(tmp_path)] == ["other/test_c.py"]
 
 
-def test_ci_coverage_package_test_directories_and_a_file_level_mention(tmp_path):
-    _write(tmp_path, {"pkg/core/tests/test_a.py": "", "pkg/jax/tests/test_b.py": "",
-                      ".github/workflows/tests.yml": "run: pytest pkg/core/tests/test_a.py\n"})
-    assert [f.path for f in ci_coverage.check(tmp_path)] == ["pkg/jax/tests"]
+def test_home_paths_are_forbidden_by_user_not_by_prefix(tmp_path):
+    user = hashlib.sha256(b"zzperson").hexdigest()
+    _write(tmp_path, {"a.txt": "ENV PATH=/home/runner/bin\nx = '/Users/ZZPerson/work'\n"})
+    found = private_ids.check(tmp_path, users={user})
+    assert [(f.line, f.reason) for f in found] == [(2, "forbidden home path")]
+    assert "zzperson" not in str(found[0]).lower()
 
 
 def test_hidden_defaults_flags_numbers_standing_in_for_missing_inputs():
@@ -95,9 +105,3 @@ def test_exit_status_is_nonzero_with_file_line_and_reason(tmp_path, capsys):
     _write(tmp_path, {"pkg/__init__.py": "", "pkg/m.py": "a = x or 0.5\n"})
     assert cli.main(["hidden-defaults", str(tmp_path)]) == 1
     assert capsys.readouterr().out.startswith("pkg/m.py:1: hidden-defaults:")
-
-
-def test_ci_coverage_a_pytest_run_without_paths_collects_everything(tmp_path):
-    _write(tmp_path, {"tests/a/test_a.py": "", ".github/workflows/tests.yml": "run: pytest -q -m \"not slow\"\n"})
-    assert ci_coverage.check(tmp_path) == []
-    assert [f.path for f in ci_coverage.check(tmp_path, strict=True)] == ["tests/a"]

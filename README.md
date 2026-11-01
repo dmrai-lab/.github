@@ -16,7 +16,6 @@ jobs:
     with:
       src: dmipy_fit                                   # package paths for the two AST guards (default: detected)
       workflows: .github/workflows/tests.yml           # files that collect the tests (default shown)
-      strict-test-dirs: false                          # true: each test directory must itself be named
 ```
 
 The guards run at the commit of the workflow file the caller pins (`@main`, a tag or a SHA). Locally: `python -m guards <check> <repo-root>` from the directory that holds `guards/`, with `<check>` one of the four names below or `all`. Exit status 1, one `file:line: check: reason` line per finding.
@@ -26,7 +25,7 @@ The guards run at the commit of the workflow file the caller pins (`@main`, a ta
 | check | flags |
 |---|---|
 | `private-ids` | a tracked file naming a project, service, machine or local path outside the public project. Words are stored as sha256 hashes and runtime-joined fragments; a finding names file:line and the pattern index, never the text. No allow-list. |
-| `ci-coverage` | a directory holding `test_*.py` (including `pkg/**/tests`) that no workflow file in `workflows` names. Without `strict-test-dirs`, a whole-root `pytest tests/` covers what lies below it. |
+| `ci-coverage` | a tracked `test_*.py` that no `pytest` invocation in the `workflows` files collects. An invocation collects a file when it names the file, a directory holding it or a glob matching it, or runs without paths (the repository's `testpaths`, else everything); `--ignore` removes it again; `pytest $VAR` counts every path-like token of its workflow file. |
 | `hidden-defaults` | in package code (not tests): `<expr> or <number>`, `<mapping>.get(<key>, <number>)`, `getattr(x, k, <number>)`. A number standing in for a missing input is how a certified quantity ends up resting on a value nobody stated. |
 | `history-wording` | docstrings containing "previously", "no longer", "was replaced", "the old", a sentence-initial "Now", or "used to" with a pronoun subject. A docstring says what a thing is; history belongs in the pull request or issue. |
 

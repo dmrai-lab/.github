@@ -34,12 +34,19 @@ FORBIDDEN_TOKEN_DIGESTS = frozenset((
     "16f1496bf9d0e3d13476dff58afe84023ab9db78d596a440bb2bd27d1dcc086e",
 ))
 
+#: sha256 of the lowercase user name in ``/home/<user>`` and ``/Users/<user>``: a container's own user is public,
+#: a person's home directory is not
+FORBIDDEN_USER_DIGESTS = frozenset((
+    "2f55e450c3db288295509c0eb0c6cc1ad3adb13c5dbe18b745a1aaa24dc02613",
+    "6761ce5fb48a17cf55c2164409d09652dc6f64fa07c93924d62df09c32c25e8f",
+))
+HOME_RE = re.compile(r"/(?:home|Users)/([A-Za-z0-9_.-]+)")
+
 #: split fragments, joined into case-insensitive regular expressions at run time
 FORBIDDEN_FRAGMENTS = (
     ("dmipy", "[-_]sim", "[-_]cu", "da"),                   # the non-public backend package
     ("cu", "da#", r"\d"),                                    # its issue references
     ("dmrai", "-w", "s"),                                    # a lab workspace path
-    ("/ho", "me/"),
     ("/m", "nt/"),
     (r"\bmo", "dal (run|t4|container)", "|import mo", "dal|mo", r"dal\.(app|image)"),   # a rented-compute vendor
     ("shared ", "box"),                                      # ownership phrasing
@@ -63,7 +70,8 @@ def _tokens(text):
             yield from parts
 
 
-def check(root, digests=None, patterns=None, **_):
+def check(root, digests=None, patterns=None, users=None, **_):
+    user_digests = FORBIDDEN_USER_DIGESTS if users is None else users
     digests = FORBIDDEN_TOKEN_DIGESTS if digests is None else digests
     patterns = PATTERNS if patterns is None else patterns
     found = []
@@ -77,6 +85,8 @@ def check(root, digests=None, patterns=None, **_):
         for n, line in enumerate(text.splitlines(), 1):
             if any(_digest(t) in digests for t in _tokens(line)):
                 found.append(Finding(CHECK, p, n, "forbidden token"))
+            if any(_digest(m.group(1)) in user_digests for m in HOME_RE.finditer(line)):
+                found.append(Finding(CHECK, p, n, "forbidden home path"))
             for i, pat in enumerate(patterns):
                 if pat.search(line):
                     found.append(Finding(CHECK, p, n, f"forbidden pattern {i}"))

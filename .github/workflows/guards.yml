@@ -4,8 +4,8 @@ name: Guards
 #   jobs:
 #     guards:
 #       uses: dmrai-lab/.github/.github/workflows/guards.yml@main
-# Stdlib-only Python, seconds on a free runner; no schedule. The guards run at the commit of this workflow file
-# the caller pins (`@main`, or a tag or SHA).
+# Stdlib-only Python, seconds on a free runner; no schedule. The guards are read from `ref` of this repository
+# (default main; a workflow called from here passes its own commit).
 on:
   workflow_call:
     inputs:
@@ -17,6 +17,10 @@ on:
         description: "Space-separated workflow files that collect the tests"
         type: string
         default: ".github/workflows/tests.yml"
+      ref:
+        description: "The ref of dmrai-lab/.github whose guards/ package is run"
+        type: string
+        default: main
 
 permissions:
   contents: read
@@ -30,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: dmrai-lab/.github
-          ref: ${{ github.job_workflow_sha || 'main' }}
+          ref: ${{ inputs.ref }}
           path: .guards-src
           sparse-checkout: guards
       - uses: actions/setup-python@v5

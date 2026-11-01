@@ -109,10 +109,10 @@ def test_every_dmipy_import_in_the_shipped_code_resolves():
 
 
 def _envelope():
-    """The scanner class the pack states: the Connectom preset, with a slew beyond any catalogue so that dmipy-fit's
-    idealised square lobes are inside it."""
-    from dmipy_sim.replay.compression import default_envelope
-    return dict(default_envelope(), scanner="connectom", slew_max=1e5)
+    """The envelope the pack is walked for and states: the Connectom class's preset (its band and per-axis amplitude),
+    the contact tier up to 100 um/s."""
+    from dmipy_replay import envelope_of
+    return envelope_of("connectom", rho2_max=1e-4)
 
 
 def _free_se(b, n):
@@ -125,10 +125,10 @@ def pack(tmp_path_factory):
     """dmipy-sim walks, builds and writes the pack; dmipy-replay's reader reads the file."""
     import dmipy_replay as dr
     from dmipy_sim import Cylinder, build_replay_pack, walk
-    w = walk(Cylinder(radius=RADIUS, orientation=(0, 0, 1)), N_WALKERS, T_WALK, diffusivity=D, seed=11, require_gpu=False)
+    w = walk(Cylinder(radius=RADIUS, orientation=(0, 0, 1)), N_WALKERS, T_WALK, diffusivity=D, seed=11, require_gpu=False,
+             envelope=_envelope())
     path = tmp_path_factory.mktemp("rpk") / "cylinder.rpk"
-    build_replay_pack(w, id="integration/cylinder", license="CC0-1.0", citation="integration smoke",
-                      envelope=_envelope(), out_path=str(path))
+    build_replay_pack(w, id="integration/cylinder", license="CC0-1.0", citation="integration smoke", out_path=str(path))
     return dr.read_rpk(str(path))
 
 

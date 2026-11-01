@@ -1,0 +1,103 @@
+name: Integration
+
+# The mains of dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design and dmipy-tract installed together, and a small smoke set
+# (`integration/test_smoke.py` of this repository) run on them: the imports of all five, one walk -> replay pack ->
+# the reader's replay, one dmipy-fit replay-model call on that pack, one dmipy-design certificate, one dmipy-tract
+# track. Each package's own CI installs its dependencies from PyPI or from a pinned commit; this is where a change in one
+# package meets the current main of the others.
+#
+# Called by each of the five repositories (`.github/workflows/integration.yml`) on a push to main and on a pull
+# request, at the calling repository's own commit; and on `repository_dispatch` from a dependency, at its main:
+#   jobs:
+#     integration:
+#       uses: dmrai-lab/.github/.github/workflows/integration.yml@main
+#       with:
+#         notify: dmipy-fit dmipy-design              # repositories to tell when this repository's main changes
+#       secrets:
+#         DMRAI_DISPATCH_TOKEN: ${{ secrets.DMRAI_DISPATCH_TOKEN }}
+# A push to main sends each notified repository a `repository_dispatch` event `dmrai-main-changed`. The default
+# GITHUB_TOKEN cannot dispatch to another repository, so the notice needs `DMRAI_DISPATCH_TOKEN`, a fine-grained token with
+# Contents: read and write on the notified repositories; without it the notice is skipped and said so.
+# The smoke set is read from `ref` of this repository (default main; a workflow called from here passes its own commit).
+# Free runners, no schedule. Called from a repository that is none of the five (this one), all five are installed at main.
+on:
+  workflow_call:
+    inputs:
+      notify:
+        description: "Space-separated repositories of dmrai-lab to notify when the caller's main changes"
+        type: string
+        default: ""
+      ref:
+        description: "The ref of dmrai-lab/.github whose integration/ holds the smoke set"
+        type: string
+        default: main
+    secrets:
+      DMRAI_DISPATCH_TOKEN:
+        description: "Fine-grained token: Contents read and write on the notified repositories"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      JAX_PLATFORMS: cpu
+    steps:
+      - name: The calling repository, at its own commit
+        if: contains(fromJSON('["dmipy-replay", "dmipy-sim", "dmipy-fit", "dmipy-design", "dmipy-tract"]'), github.event.repository.name)
+        uses: actions/checkout@v4
+        with:
+          path: packages/${{ github.event.repository.name }}
+      - name: The other packages, at main
+        run: |
+          for name in dmipy-replay dmipy-sim dmipy-fit dmipy-design dmipy-tract; do
+            [ -d "packages/$name" ] || git clone --quiet --depth 1 --branch main "https://github.com/dmrai-lab/$name" "packages/$name"
+          done
+      - name: The smoke set
+        uses: actions/checkout@v4
+        with:
+          repository: dmrai-lab/.github
+          ref: ${{ inputs.ref }}
+          path: integration-src
+          sparse-checkout: integration
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # The mains name releases of each other that PyPI does not hold yet (dmipy-sim>=3 beside a main at 2.x), so the
+      # five are installed without resolving each other and the third-party requirements are installed beside them.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python integration-src/integration/requirements.py packages/* > third-party.txt
+          pip install -r third-party.txt pytest
+          pip install --no-deps -e packages/dmipy-replay -e packages/dmipy-sim -e packages/dmipy-fit -e packages/dmipy-design -e packages/dmipy-tract
+          pip list --format=freeze | grep -i '^dmipy'
+      - name: Smoke
+        working-directory: integration-src
+        run: python -m pytest integration/test_smoke.py -q --durations=10
+
+  notify:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.notify != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Notify the dependents
+        env:
+          GH_TOKEN: ${{ secrets.DMRAI_DISPATCH_TOKEN }}
+          DEPENDENTS: ${{ inputs.notify }}
+          SOURCE: ${{ github.event.repository.name }}
+          SHA: ${{ github.sha }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::notice title=Integration::DMRAI_DISPATCH_TOKEN is not set: $DEPENDENTS are not told that $SOURCE changed"
+            exit 0
+          fi
+          failed=0
+          for repo in $DEPENDENTS; do
+            gh api "repos/dmrai-lab/$repo/dispatches" -f event_type=dmrai-main-changed \
+              -f "client_payload[source]=$SOURCE" -f "client_payload[sha]=$SHA" || failed=1
+          done
+          exit $failed

@@ -1,6 +1,8 @@
 # .github
 
-Static guards for the public dmrai-lab repositories, written once and called by each of them. The package `guards/` is stdlib-only Python (nothing to install); the reusable workflow runs in seconds on a free GitHub runner. There is no schedule and no paid compute.
+Shared CI for the public dmrai-lab repositories, written once and called by each of them: the static guards, and the integration check of the five packages. Both run on free GitHub runners; there is no schedule and no paid compute.
+
+The static guards are the package `guards/` (stdlib-only Python, nothing to install) and run in seconds. The integration check is described [below](#the-integration-check).
 
 This repository holds no organisation-wide community files (profile, CONTRIBUTING, SECURITY): they would apply to every repository.
 
@@ -38,6 +40,44 @@ path/to/module.py:3fa91c07d2 pre-existing, tracked in dmrai-lab/<repo>#<issue>
 ```
 
 The token after the colon is printed with every finding (`[allow: path:hash]`); it hashes the guard name and the line's text with whitespace collapsed, so an entry survives the line moving and lapses when the line changes. The reason is required. `python -m guards <check> <root> --record "<reason>"` appends every current finding (the one-time baseline of a repository). Lines starting with `#` are comments.
+
+## The integration check
+
+`integration.yml` installs the mains of dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design and dmipy-tract together (editable, from git: the calling repository at its own commit, the other four at main) and runs the smoke set `integration/test_smoke.py` on them. A package's own CI installs its dependencies from PyPI or from a pinned commit; this is where a change in one package meets the current main of the others. The smoke set:
+
+| check | breaks when |
+|---|---|
+| every module of the five imports, every name of an `__all__` exists, every `dmipy_*` import statement in the shipped code (function bodies included) names a module and names that exist | one package moves a module or a name another still imports |
+| dmipy-sim walks a cylinder (400 walkers), builds a replay pack and writes it; dmipy-replay's reader reads the file and replays it, along the axis within the standard error of the closed form | the reader refuses what the producer writes, or the two disagree on the signal |
+| dmipy-fit's `MonteCarloReplay` equals the pack's own replay at a pose | the fit's replay model and the reader part |
+| dmipy-design's `certify` certifies the pack against a scanner class | the certificate and the pack's fidelity terms part |
+| dmipy-tract tracks a constructed FOD field and writes the `.tck` through dmipy-sim | tract and the SH basis or the file writer part |
+
+CPU only: about 40 s of runner time in all, of which the installs are about 20 s and the tests about 10 s. The mains name releases of each other that PyPI does not hold yet, so the five are installed with `--no-deps` and `integration/requirements.py` prints the third-party requirements of the checkouts for the rest.
+
+```yaml
+# .github/workflows/integration.yml of a package repository
+name: Integration
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  repository_dispatch:
+    types: [ dmrai-main-changed ]            # a dependency's main changed
+jobs:
+  integration:
+    uses: dmrai-lab/.github/.github/workflows/integration.yml@main
+    with:
+      notify: dmipy-fit dmipy-design         # told on a push to main
+    secrets:
+      DMRAI_DISPATCH_TOKEN: ${{ secrets.DMRAI_DISPATCH_TOKEN }}
+```
+
+A push to main sends each repository of `notify` a `repository_dispatch` event `dmrai-main-changed`, and that repository runs the check at its main. The default `GITHUB_TOKEN` cannot dispatch to another repository: the secret `DMRAI_DISPATCH_TOKEN` is a fine-grained token (resource owner dmrai-lab, the notified repositories, permission Contents: read and write). Without it the notice is skipped and the run says so; the caller's own push and pull-request runs need no secret.
+
+The smoke set is read from the `ref` input (default `main`) of this repository; a workflow called from here passes its own commit.
+
+The smoke set is the contract between the packages: a deliberate change to an API it uses changes `integration/test_smoke.py` here in the same sitting, and the pull request that makes the change shows the check red until it does.
 
 ## Tests
 

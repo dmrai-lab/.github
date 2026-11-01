@@ -95,3 +95,9 @@ def test_exit_status_is_nonzero_with_file_line_and_reason(tmp_path, capsys):
     _write(tmp_path, {"pkg/__init__.py": "", "pkg/m.py": "a = x or 0.5\n"})
     assert cli.main(["hidden-defaults", str(tmp_path)]) == 1
     assert capsys.readouterr().out.startswith("pkg/m.py:1: hidden-defaults:")
+
+
+def test_ci_coverage_a_pytest_run_without_paths_collects_everything(tmp_path):
+    _write(tmp_path, {"tests/a/test_a.py": "", ".github/workflows/tests.yml": "run: pytest -q -m \"not slow\"\n"})
+    assert ci_coverage.check(tmp_path) == []
+    assert [f.path for f in ci_coverage.check(tmp_path, strict=True)] == ["tests/a"]

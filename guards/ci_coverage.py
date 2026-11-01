@@ -76,7 +76,7 @@ def check(root, workflows=DEFAULT_WORKFLOWS, **_):
 
 
 def stale_entries(root, raw):
-    """Allow-list entries that state an exception for a test file CI does collect (or that no longer exists)."""
+    """Allow-list entries that state an exception for a test file CI does collect, or for a path that is not tracked."""
     uncollected = {f.path for f in raw}
     return [Finding(CHECK, ALLOW_FILE, 1, f"stale exception for {path}: CI collects it, or it is gone", "")
             for (path, key) in sorted(load(root)) if key == line_hash(CHECK, path) and path not in uncollected]

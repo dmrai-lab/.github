@@ -28,3 +28,5 @@ jobs:
   integration:
     # no calling package: the mains of all five, at this repository's workflow and smoke set
     uses: ./.github/workflows/integration.yml
+    with:
+      ref: ${{ github.sha }}

@@ -24,4 +24,7 @@ jobs:
     uses: ./.github/workflows/guards.yml
     with:
       src: guards
-      workflows: .github/workflows/ci.yml
+      workflows: .github/workflows/ci.yml .github/workflows/integration.yml
+  integration:
+    # no calling package: the mains of all five, at this repository's workflow and smoke set
+    uses: ./.github/workflows/integration.yml

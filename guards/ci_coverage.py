@@ -9,7 +9,7 @@ import shlex
 import tomllib
 from pathlib import Path
 
-from .allow import Finding, line_hash, tracked
+from .allow import ALLOW_FILE, Finding, line_hash, load, tracked
 
 CHECK = "ci-coverage"
 DEFAULT_WORKFLOWS = (".github/workflows/tests.yml",)
@@ -73,3 +73,10 @@ def check(root, workflows=DEFAULT_WORKFLOWS, **_):
                         and not any(_matches(f, ig) for ig in ignores)}
     return [Finding(CHECK, f, 1, "no CI pytest invocation collects this test file", line_hash(CHECK, f))
             for f in files if f not in covered]
+
+
+def stale_entries(root, raw):
+    """Allow-list entries that state an exception for a test file CI does collect (or that no longer exists)."""
+    uncollected = {f.path for f in raw}
+    return [Finding(CHECK, ALLOW_FILE, 1, f"stale exception for {path}: CI collects it, or it is gone", "")
+            for (path, key) in sorted(load(root)) if key == line_hash(CHECK, path) and path not in uncollected]

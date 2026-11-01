@@ -11,7 +11,10 @@ CHECKS = {"private-ids": private_ids, "ci-coverage": ci_coverage,
 
 def run(name, root, src=(), workflows=ci_coverage.DEFAULT_WORKFLOWS):
     found = CHECKS[name].check(root, src=src, workflows=workflows)
-    return found if name == "private-ids" else allow.unallowed(found, root)
+    if name == "private-ids":
+        return found
+    left = allow.unallowed(found, root)
+    return left + ci_coverage.stale_entries(root, found) if name == "ci-coverage" else left
 
 
 def main(argv=None):

@@ -105,3 +105,12 @@ def test_exit_status_is_nonzero_with_file_line_and_reason(tmp_path, capsys):
     _write(tmp_path, {"pkg/__init__.py": "", "pkg/m.py": "a = x or 0.5\n"})
     assert cli.main(["hidden-defaults", str(tmp_path)]) == 1
     assert capsys.readouterr().out.startswith("pkg/m.py:1: hidden-defaults:")
+
+
+def test_ci_coverage_accepts_a_stated_exception_and_flags_a_stale_one(tmp_path, capsys):
+    _write(tmp_path, {"tests/test_a.py": "", "tests/test_b.py": "", ".github/workflows/tests.yml": "run: pytest tests/test_a.py\n"})
+    assert [f.path for f in cli.run("ci-coverage", tmp_path)] == ["tests/test_b.py"]
+    assert cli.main(["ci-coverage", str(tmp_path), "--record", "runs elsewhere"]) == 0
+    assert cli.run("ci-coverage", tmp_path) == []
+    (tmp_path / ".github/workflows/tests.yml").write_text("run: pytest tests\n")
+    assert [f.path for f in cli.run("ci-coverage", tmp_path)] == [".guards-allow"]

@@ -114,3 +114,19 @@ def test_ci_coverage_accepts_a_stated_exception_and_flags_a_stale_one(tmp_path, 
     assert cli.run("ci-coverage", tmp_path) == []
     (tmp_path / ".github/workflows/tests.yml").write_text("run: pytest tests\n")
     assert [f.path for f in cli.run("ci-coverage", tmp_path)] == [".guards-allow"]
+
+
+def test_only_the_vendor_finding_is_allowable_and_a_stated_entry_accepts_it(tmp_path, monkeypatch):
+    other = re.compile("".join(("quux", "-", r"\d+")))
+    vendor = re.compile("".join(("vend", "or-ci")))
+    never = re.compile(r"(?!x)x")
+    patterns = [other] + [never] * (private_ids.VENDOR_PATTERN - 1) + [vendor]
+    _write(tmp_path, {"ci.py": "launch(vendor-ci)\n", "pkg.py": "see quux-7\n"})
+    monkeypatch.setattr(private_ids, "PATTERNS", patterns)
+    monkeypatch.setattr(private_ids, "FORBIDDEN_TOKEN_DIGESTS", frozenset())
+    found = cli.run("private-ids", tmp_path)
+    assert sorted((f.path, bool(f.key)) for f in found) == [("ci.py", True), ("pkg.py", False)]
+    v = next(f for f in found if f.path == "ci.py")
+    (tmp_path / allow.ALLOW_FILE).write_text(f"ci.py:{v.key} the CI launcher names its runner\n"
+                                              f"pkg.py:{allow.line_hash('private-ids', 'see quux-7')} tried\n")
+    assert [f.path for f in cli.run("private-ids", tmp_path)] == ["pkg.py"]   # a keyless finding is never allowed

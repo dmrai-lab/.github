@@ -10,12 +10,17 @@ resolved at runtime:
   split fragments that are joined into a regular expression when the guard runs.
 
 A finding names file:line and the pattern's index, never the matched text. Hardware classes (GPU model names)
-may be named; which machine ran a measurement may not. This file holds the encoded tables, so it is not scanned."""
+may be named; which machine ran a measurement may not. This file holds the encoded tables, so it is not scanned.
+
+A repository's own CI tooling may have to name the rented-compute vendor it launches on (:data:`VENDOR_PATTERN`):
+that finding alone carries a line hash and is accepted by a stated ``.guards-allow`` entry like the other guards'.
+Every other finding (a private repository, a package, a machine, a person's home path) has no key and can never be
+allowed."""
 import hashlib
 import re
 from pathlib import Path
 
-from .allow import Finding, tracked
+from .allow import Finding, line_hash, tracked
 
 CHECK = "private-ids"
 SELF = "guards/private_ids.py"
@@ -54,6 +59,9 @@ FORBIDDEN_FRAGMENTS = (
     ("dmrai", "-pa", "pers"),                                # a private repository, by prefix
 )
 
+VENDOR_PATTERN = 4
+"""The index of the rented-compute vendor's pattern in :data:`FORBIDDEN_FRAGMENTS`: the one allow-listable finding."""
+
 TOKEN_RE = re.compile(r"[A-Za-z0-9_-]+")
 PATTERNS = [re.compile("".join(f), re.IGNORECASE) for f in FORBIDDEN_FRAGMENTS]
 
@@ -89,5 +97,6 @@ def check(root, digests=None, patterns=None, users=None, **_):
                 found.append(Finding(CHECK, p, n, "forbidden home path"))
             for i, pat in enumerate(patterns):
                 if pat.search(line):
-                    found.append(Finding(CHECK, p, n, f"forbidden pattern {i}"))
+                    key = line_hash(CHECK, line) if i == VENDOR_PATTERN else ""
+                    found.append(Finding(CHECK, p, n, f"forbidden pattern {i}", key))
     return found

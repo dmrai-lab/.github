@@ -11,9 +11,9 @@ CHECKS = {"private-ids": private_ids, "ci-coverage": ci_coverage,
 
 def run(name, root, src=(), workflows=ci_coverage.DEFAULT_WORKFLOWS):
     found = CHECKS[name].check(root, src=src, workflows=workflows)
+    left = allow.unallowed(found, root)                 # private-ids: only its vendor findings carry a key
     if name == "private-ids":
-        return found
-    left = allow.unallowed(found, root)
+        return left
     return left + ci_coverage.stale_entries(root, found) if name == "ci-coverage" else left
 
 
@@ -31,7 +31,7 @@ def main(argv=None):
         t0 = time.perf_counter()
         found = run(name, a.root, a.src.split(), a.workflows.split())
         found = sorted(found)
-        if a.record and name != "private-ids":
+        if a.record and name != "private-ids":            # never baseline a leak
             print(f"guards: {name}: recorded {allow.record(found, a.root, a.record)} entries", file=sys.stderr)
             found = []
         for f in found:

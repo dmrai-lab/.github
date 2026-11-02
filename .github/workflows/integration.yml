@@ -1,12 +1,12 @@
 name: Integration
 
-# The mains of dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design and dmipy-tract installed together, and a small smoke set
-# (`integration/test_smoke.py` of this repository) run on them: the imports of all five, one walk -> replay pack ->
+# The mains of dmipy-analytic, dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design and dmipy-tract installed together, and a
+# small smoke set (`integration/test_smoke.py` of this repository) run on them: the imports of all six, one walk -> replay pack ->
 # the reader's replay, one dmipy-fit replay-model call on that pack, one dmipy-design certificate, one dmipy-tract
 # track. Each package's own CI installs its dependencies from PyPI or from a pinned commit; this is where a change in one
 # package meets the current main of the others.
 #
-# Called by each of the five repositories (`.github/workflows/integration.yml`) on a push to main and on a pull
+# Called by each of the six repositories (`.github/workflows/integration.yml`) on a push to main and on a pull
 # request, at the calling repository's own commit; and on `repository_dispatch` from a dependency, at its main:
 #   jobs:
 #     integration:
@@ -19,7 +19,7 @@ name: Integration
 # GITHUB_TOKEN cannot dispatch to another repository, so the notice needs `DMRAI_DISPATCH_TOKEN`, a fine-grained token with
 # Contents: read and write on the notified repositories; without it the notice is skipped and said so.
 # The smoke set is read from `ref` of this repository (default main; a workflow called from here passes its own commit).
-# Free runners, no schedule. Called from a repository that is none of the five (this one), all five are installed at main.
+# Free runners, no schedule. Called from a repository that is none of the six (this one), all six are installed at main.
 on:
   workflow_call:
     inputs:
@@ -47,13 +47,13 @@ jobs:
       JAX_PLATFORMS: cpu
     steps:
       - name: The calling repository, at its own commit
-        if: contains(fromJSON('["dmipy-replay", "dmipy-sim", "dmipy-fit", "dmipy-design", "dmipy-tract"]'), github.event.repository.name)
+        if: contains(fromJSON('["dmipy-analytic", "dmipy-replay", "dmipy-sim", "dmipy-fit", "dmipy-design", "dmipy-tract"]'), github.event.repository.name)
         uses: actions/checkout@v4
         with:
           path: packages/${{ github.event.repository.name }}
       - name: The other packages, at main
         run: |
-          for name in dmipy-replay dmipy-sim dmipy-fit dmipy-design dmipy-tract; do
+          for name in dmipy-analytic dmipy-replay dmipy-sim dmipy-fit dmipy-design dmipy-tract; do
             [ -d "packages/$name" ] || git clone --quiet --depth 1 --branch main "https://github.com/dmrai-lab/$name" "packages/$name"
           done
       - name: The smoke set
@@ -67,13 +67,13 @@ jobs:
         with:
           python-version: "3.12"
       # The mains name releases of each other that PyPI does not hold yet (dmipy-sim>=3 beside a main at 2.x), so the
-      # five are installed without resolving each other and the third-party requirements are installed beside them.
+      # six are installed without resolving each other and the third-party requirements are installed beside them.
       - name: Install
         run: |
           python -m pip install --upgrade pip
           python integration-src/integration/requirements.py packages/* > third-party.txt
           pip install -r third-party.txt pytest
-          pip install --no-deps -e packages/dmipy-replay -e packages/dmipy-sim -e packages/dmipy-fit -e packages/dmipy-design -e packages/dmipy-tract
+          pip install --no-deps -e packages/dmipy-analytic -e packages/dmipy-replay -e packages/dmipy-sim -e packages/dmipy-fit -e packages/dmipy-design -e packages/dmipy-tract
           pip list --format=freeze | grep -i '^dmipy'
       - name: Smoke
         working-directory: integration-src

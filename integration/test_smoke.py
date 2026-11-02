@@ -153,9 +153,9 @@ def test_the_fit_replay_model_is_the_packs_replay_at_a_pose(pack):
 
 @pytest.mark.filterwarnings("ignore:certifying from")
 def test_the_design_certificate_certifies_the_pack_against_a_scanner_class(pack):
-    from dmipy_design.certify import certify, replay_envelope
-    scanner = replay_envelope(G_max=0.1, slew_rate_max=100.0, raster=1e-4, name="integration")
-    certificate = certify(pack, scanner, eps=5e-2, K_grid=(4, 8), steps=30, restarts=2)
+    from dmipy_design.certify import certify, deliverable_set
+    deliverable = deliverable_set(G_max=0.1, slew_rate_max=100.0, raster=1e-4, name="integration")
+    certificate = certify(pack, deliverable, eps=5e-2, K_grid=(4, 8), steps=30, restarts=2)
     assert certificate.n_walkers == N_WALKERS and certificate.T == pytest.approx(T_WALK)
     assert certificate.K <= certificate.K_stored
     assert certificate.f_c == pytest.approx(certificate.K / (2 * certificate.T))

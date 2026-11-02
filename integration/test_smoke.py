@@ -1,8 +1,8 @@
-"""The smoke set of the integration check: the mains of dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design and dmipy-tract
-installed together, each package doing its one job on what another produced.
+"""The smoke set of the integration check: the mains of dmipy-analytic, dmipy-replay, dmipy-sim, dmipy-fit, dmipy-design
+and dmipy-tract installed together, each package doing its one job on what another produced.
 
 1. Imports. Every package imports with every module of it, exports every name its ``__all__`` lists, and every
-   ``dmipy_*`` import statement in the shipped code of the five (function bodies included) names a module and the
+   ``dmipy_*`` import statement in the shipped code of the six (function bodies included) names a module and the
    names that exist: a module or name one package moved and another still imports fails here.
 2. The pack. dmipy-sim walks a cylinder along z and builds a replay pack, dmipy-replay's reader reads the file and replays
    it: along the axis the signal is the free closed form, within the standard error of the walk's own sample.
@@ -11,7 +11,7 @@ installed together, each package doing its one job on what another produced.
 5. dmipy-tract tracks a constructed FOD field and writes the tractogram through dmipy-sim.
 
 CPU only, a few hundred walkers, seconds. A third-party module the environment lacks is a warning, never a pass or a
-failure of its own: the check is about the five packages and one another.
+failure of its own: the check is about the six packages and one another.
 """
 import ast
 import importlib
@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-PACKAGES = ("dmipy_replay", "dmipy_sim", "dmipy_fit", "dmipy_design", "dmipy_tract")
+PACKAGES = ("dmipy_analytic", "dmipy_replay", "dmipy_sim", "dmipy_fit", "dmipy_design", "dmipy_tract")
 
 D = 2e-9                    # m^2/s, the diffusivity the walk steps with
 N_WALKERS = 400

@@ -153,10 +153,11 @@ def _pytest(root, wd, args):
             continue
         paths.append(t)
         i += 1
-    ancestors = []
+    ancestors, unresolved = [], False
     for p in paths:
         p = re.split(r"::", p)[0]
         if "$" in p:
+            unresolved = True                                   # a path made of a variable: any directory below may apply
             continue
         p = re.split(r"[*?\[]", p)[0].rstrip("/") or "."
         q = (wd / p) if wd else Path(p)
@@ -171,6 +172,30 @@ def _pytest(root, wd, args):
                 break
             common.append(group[0])
         start = Path(*common) if common else Path(".")
+    starts = [start]
+    if unresolved:
+        starts += _config_dirs(root, start)
+    for s in starts:
+        reason = _judge(root, wd, args, s)
+        if reason:
+            return reason + (f" (for a path made of a variable: as run from {s})" if s != start else "")
+    return None
+
+
+def _config_dirs(root, start):
+    """The directories below ``start`` that hold a pytest configuration file."""
+    found = []
+    for f in sorted((root / start).rglob("*")):
+        rel = f.relative_to(root)
+        if f.name in ("pytest.ini", ".pytest.ini", "pyproject.toml", "tox.ini", "setup.cfg") and f.is_file() \
+                and not {".git", "node_modules"} & set(rel.parts):
+            if f.name in ("pytest.ini", ".pytest.ini") or _addopts(f) is not None:
+                found.append(rel.parent)
+    return [d for d in dict.fromkeys(found) if d != start]
+
+
+def _judge(root, wd, args, start):
+    """``None`` when pytest, run with ``args`` as discovered from ``start``, prints 25 slowest at 1.0 s, else the reason."""
     cfg = _option(args, "-c") or _option(args, "--config-file")
     if wd is not None and not (root / wd).exists():
         base = []                                               # a second checkout: no configuration of this repository
@@ -221,7 +246,7 @@ def _unittest(args):
     return f"unittest has {'--durations ' + n if n is not None else 'no --durations'}; need --durations {UNITTEST_DURATIONS}"
 
 
-_STARTS_PYTEST = re.compile(r"""["']-m["']\s*,\s*["']pytest["']|\bpytest\.main\(|["'][^"'\n]*-m pytest\b""")
+_STARTS_PYTEST = re.compile(r"""["']-m["']\s*,\s*["']pytest["']|\[\s*["'](?:py\.?test)["']|\bpytest\.main\(|["'][^"'\n]*-m pytest\b""")
 
 
 def _script_of(tokens):
@@ -247,6 +272,14 @@ def _script_findings(root, wd, tokens):
     if not f.is_file():
         return []
     text, out = f.read_text(), []
+    if f.suffix == ".sh":
+        for line, toks in _segments(text):
+            inv = _invocation(toks)
+            if inv and inv[0] == "pytest" and not _COLLECT_ONLY & set(toks):
+                reason = _pytest_literals(toks[inv[1]:])
+                if reason:
+                    out.append((script, line, reason))
+        return out
     for m in _STARTS_PYTEST.finditer(text):
         close = text.find("]", m.start())
         window = text[m.start(): close if 0 <= close - m.start() < 800 else text.find("\n", m.start())]
@@ -260,6 +293,9 @@ def _script_findings(root, wd, tokens):
 
 
 def _pytest_literals(lits):
+    for i, t in enumerate(lits):
+        if t in ("-pno:terminal", "-pno:terminalreporter") or (t == "-p" and lits[i + 1:i + 2] in (["no:terminal"], ["no:terminalreporter"])):
+            return "starts pytest with the terminal reporter disabled, so no durations are printed"
     n, m = _option(lits, "--durations"), _option(lits, "--durations-min")
     try:
         ok = n is not None and int(n) == PYTEST_DURATIONS and m is not None and float(m) == PYTEST_DURATIONS_MIN

@@ -117,3 +117,25 @@ def test_the_guard_is_a_sub_command_and_part_of_all(tmp_path, capsys):
     assert ".github/workflows/tests.yml:4: test-durations:" in capsys.readouterr().out
     _write(tmp_path, _wf(f"pytest -q {FLAGS}"))
     assert cli.main(["test-durations", str(tmp_path)]) == 0
+
+
+def test_a_path_made_of_a_variable_is_judged_under_every_configuration_below_it(tmp_path):
+    _write(tmp_path, {"pyproject.toml": f'[tool.pytest.ini_options]\naddopts = "{FLAGS}"\n',
+                      "sub/pytest.ini": "[pytest]\naddopts = -q\n", **_wf("pytest $PATHS -q")})
+    msg = _reasons(tmp_path)
+    assert len(msg) == 1 and "no --durations" in msg[0] and "path made of a variable: as run from sub" in msg[0]
+    print(msg[0])
+    (tmp_path / "sub/pytest.ini").write_text(f"[pytest]\naddopts = {FLAGS}\n")
+    assert _reasons(tmp_path) == []
+
+
+def test_scripts_in_other_spellings_and_with_the_reporter_disabled_are_judged(tmp_path):
+    _write(tmp_path, {"tools/a.py": 'import subprocess\nsubprocess.run(["pytest", "-q"])\n', **_wf("python tools/a.py")})
+    assert len(_reasons(tmp_path)) == 1 and "tools/a.py:2" in _reasons(tmp_path)[0]
+    _write(tmp_path, {"tools/b.sh": "#!/bin/sh\npytest -q tests\n", **_wf("bash tools/b.sh")})
+    assert len(_reasons(tmp_path)) == 1 and "tools/b.sh:2" in _reasons(tmp_path)[0]
+    _write(tmp_path, {"tools/b.sh": f"#!/bin/sh\npytest -q {FLAGS}\n"})
+    assert _reasons(tmp_path) == []
+    _write(tmp_path, {"tools/a.py": 'subprocess.run(["python", "-m", "pytest", "-p", "no:terminal", "--durations=25", "--durations-min=1.0"])\n',
+                      **_wf("python tools/a.py")})
+    assert "terminal reporter disabled" in _reasons(tmp_path)[0]

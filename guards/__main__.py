@@ -3,10 +3,10 @@ import argparse
 import sys
 import time
 
-from . import allow, ci_coverage, hidden_defaults, history_words, private_ids
+from . import allow, ci_coverage, durations, hidden_defaults, history_words, private_ids
 
 CHECKS = {"private-ids": private_ids, "ci-coverage": ci_coverage,
-          "hidden-defaults": hidden_defaults, "history-wording": history_words}
+          "test-durations": durations, "hidden-defaults": hidden_defaults, "history-wording": history_words}
 
 
 def run(name, root, src=(), workflows=ci_coverage.DEFAULT_WORKFLOWS):

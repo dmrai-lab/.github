@@ -77,7 +77,7 @@ jobs:
           pip list --format=freeze | grep -i '^dmipy'
       - name: Smoke
         working-directory: integration-src
-        run: python -m pytest integration/test_smoke.py -q --durations=10
+        run: python -m pytest integration/test_smoke.py -q --durations=25 --durations-min=1.0
 
   notify:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.notify != ''

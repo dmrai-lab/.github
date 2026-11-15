@@ -20,7 +20,7 @@ jobs:
       workflows: .github/workflows/tests.yml           # files that collect the tests (default shown)
 ```
 
-The guards run at the commit of the workflow file the caller pins (`@main`, a tag or a SHA). Locally: `python -m guards <check> <repo-root>` from the directory that holds `guards/`, with `<check>` one of the four names below or `all`. Exit status 1, one `file:line: check: reason` line per finding.
+The guards run at the commit of the workflow file the caller pins (`@main`, a tag or a SHA). Locally: `python -m guards <check> <repo-root>` from the directory that holds `guards/`, with `<check>` one of the five names below or `all`. Exit status 1, one `file:line: check: reason` line per finding.
 
 ## The guards
 
@@ -28,6 +28,7 @@ The guards run at the commit of the workflow file the caller pins (`@main`, a ta
 |---|---|
 | `private-ids` | a tracked file naming a project, service, machine or local path outside the public project. Words are stored as sha256 hashes and runtime-joined fragments; a finding names file:line and the pattern index, never the text. No allow-list. |
 | `ci-coverage` | a tracked `test_*.py` that no `pytest` invocation in the `workflows` files collects. An invocation collects a file when it names the file, a directory holding it or a glob matching it, or runs without paths (the repository's `testpaths`, else everything); `--ignore` removes it again; `pytest $VAR` counts every path-like token of its workflow file. |
+| `test-durations` | a `pytest` or `python -m unittest` invocation of a workflow that does not print its 25 slowest tests, judged by the configuration that effectively applies to it: the ini file pytest discovers from the invocation's paths and `working-directory` (or `-c`), its `addopts` (replaced by a `-o addopts=` on the line), then the line's own options. pytest must end with `--durations=25 --durations-min=1.0` and no `-p no:terminal`; unittest needs `--durations 25` on its line. Collect-only runs are exempt; a script that starts pytest must carry the flags itself; an invocation the guard cannot resolve (`--rootdir`, an option made of a variable, a `defaults` working directory) is a finding that names it. |
 | `hidden-defaults` | in package code (not tests): `<expr> or <number>`, `<mapping>.get(<key>, <number>)`, `getattr(x, k, <number>)`. A number standing in for a missing input is how a certified quantity ends up resting on a value nobody stated. |
 | `history-wording` | docstrings containing "previously", "no longer", "was replaced", "the old", a sentence-initial "Now", or "used to" with a pronoun subject. A docstring says what a thing is; history belongs in the pull request or issue. |
 

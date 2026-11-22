@@ -174,7 +174,7 @@ BAD_PINS = [
     json.dumps({"dmipy-sim": "a" * 41}),
     json.dumps({"dmipy-sim": "A" * 40}),
     json.dumps({"dmipy-sim": "g" * 40}),
-    json.dumps({"dmipy-sim": "A" * 39 + "\n"}),
+    json.dumps({"dmipy-sim": "a" * 40 + "\n"}),
     json.dumps({"dmipy-sim": "main"}),
     json.dumps({"dmipy-sim": 7}),
     json.dumps({"dmipy-other": A}),
@@ -239,6 +239,8 @@ def test_the_step_without_inputs_clones_every_package_at_main(tmp_path, origin):
     assert done.returncode == 0
     assert heads == {name: hashes[name, "main"] for name in NAMES}
     assert done.stdout == "".join(f"integration: {name} main {hashes[name, 'main']}\n" for name in NAMES)
+    for name in NAMES:                                    # one commit deep, as the clone command states
+        assert _git(tmp_path / "work" / "packages" / name, "rev-list", "--count", "HEAD") == "1"
 
 
 def test_the_step_checks_out_the_branch_the_pin_and_leaves_the_caller(tmp_path, origin):

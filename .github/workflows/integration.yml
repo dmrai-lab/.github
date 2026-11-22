@@ -20,6 +20,8 @@ name: Integration
 # Contents: read and write on the notified repositories; without it the notice is skipped and said so.
 # The smoke set is read from `ref` of this repository (default main; a workflow called from here passes its own commit).
 # Free runners, no schedule. Called from a repository that is none of the six (this one), all six are installed at main.
+# The other packages are at the branch `others` (main or dev; a package without a dev branch is at main) or at the
+# exact commits of `pins`; `integration/refs.py` prints the ref of each, and the job log shows each package's commit.
 on:
   workflow_call:
     inputs:
@@ -31,6 +33,14 @@ on:
         description: "The ref of dmrai-lab/.github whose integration/ holds the smoke set"
         type: string
         default: main
+      others:
+        description: "The branch of the packages the caller is not: main or dev (a package without a dev branch is at main)"
+        type: string
+        default: main
+      pins:
+        description: 'Exact commits, as JSON {"<package>": "<40 lowercase hex>", ...}; a pinned package ignores `others`'
+        type: string
+        default: ""
     secrets:
       DMRAI_DISPATCH_TOKEN:
         description: "Fine-grained token: Contents read and write on the notified repositories"
@@ -51,11 +61,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: packages/${{ github.event.repository.name }}
-      - name: The other packages, at main
-        run: |
-          for name in dmipy-analytic dmipy-replay dmipy-sim dmipy-fit dmipy-design dmipy-tract; do
-            [ -d "packages/$name" ] || git clone --quiet --depth 1 --branch main "https://github.com/dmrai-lab/$name" "packages/$name"
-          done
       - name: The smoke set
         uses: actions/checkout@v4
         with:
@@ -66,6 +71,41 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: The other packages, at the chosen branch or at exact commits
+        env:
+          OTHERS: ${{ inputs.others }}
+          PINS: ${{ inputs.pins }}
+          ORIGIN: https://github.com/dmrai-lab
+        run: |
+          if [ ! -f integration-src/integration/refs.py ]; then
+            if [ "$OTHERS" = main ] && [ -z "$PINS" ]; then
+              printf '%s main\n' dmipy-analytic dmipy-replay dmipy-sim dmipy-fit dmipy-design dmipy-tract > refs.txt
+            else
+              echo "::error title=Integration::the smoke set at this ref has no integration/refs.py: others and pins need a newer ref"
+              exit 1
+            fi
+          else
+            python integration-src/integration/refs.py --others "$OTHERS" --pins "$PINS" --origin "$ORIGIN" > refs.txt
+          fi
+          while read -r name ref; do
+            dir="packages/$name"
+            at="$ref"
+            if [ -d "$dir" ]; then
+              at=caller
+            elif [ "$ref" = main ] || [ "$ref" = dev ]; then
+              git clone --quiet --depth 1 --branch "$ref" "$ORIGIN/$name" "$dir"
+            else
+              git init --quiet "$dir"
+              git -C "$dir" fetch --quiet --depth 1 "$ORIGIN/$name" "$ref"
+              git -C "$dir" checkout --quiet --detach FETCH_HEAD
+            fi
+            head="$(git -C "$dir" rev-parse HEAD)"
+            echo "integration: $name $at $head"
+            if [ "$ref" != main ] && [ "$ref" != dev ] && [ "$head" != "$ref" ]; then
+              echo "::error title=Integration::$name is pinned at $ref and its checkout is at $head"
+              exit 1
+            fi
+          done < refs.txt
       # The mains name releases of each other that PyPI does not hold yet (dmipy-sim>=3 beside a main at 2.x), so the
       # six are installed without resolving each other and the third-party requirements are installed beside them.
       - name: Install

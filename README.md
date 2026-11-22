@@ -78,6 +78,8 @@ A push to main sends each repository of `notify` a `repository_dispatch` event `
 
 The smoke set is read from the `ref` input (default `main`) of this repository; a workflow called from here passes its own commit.
 
+The other packages are at the branch `others` (`main`, the default, or `dev`; a package whose repository has no `dev` branch is at `main`), or at the exact commits of `pins`, a JSON object such as `{"dmipy-replay": "<40 lowercase hexadecimal digits>"}`. A pin wins over `others`. A pin that names the calling repository must equal the commit it is checked out at, or the run fails. `integration/refs.py` prints the ref of each package, and the job log shows one line `integration: <name> <ref> <commit>` per package.
+
 The smoke set is the contract between the packages: a deliberate change to an API it uses changes `integration/test_smoke.py` here in the same sitting, and the pull request that makes the change shows the check red until it does.
 
 ## Tests

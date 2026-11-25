@@ -4,6 +4,7 @@ name: Guards
 #   jobs:
 #     guards:
 #       uses: dmrai-lab/.github/.github/workflows/guards.yml@main
+#       with: {runner: '["self-hosted", "linux"]'}
 # Stdlib-only Python, seconds on a free runner; no schedule. The guards are read from `ref` of this repository
 # (default main; a workflow called from here passes its own commit).
 on:
@@ -21,15 +22,21 @@ on:
         description: "The ref of dmrai-lab/.github whose guards/ package is run"
         type: string
         default: main
+      runner:
+        description: "JSON for the job's runner: a label, a list of labels, or an object with group and labels"
+        type: string
+        default: '"ubuntu-latest"'
 
 permissions:
   contents: read
 
 jobs:
   guards:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 5
     steps:
+      - name: Remove stale package checkouts
+        run: rm -rf -- "$GITHUB_WORKSPACE/packages"
       - uses: actions/checkout@v4
       - uses: actions/checkout@v4
         with:

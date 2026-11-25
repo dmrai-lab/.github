@@ -303,6 +303,7 @@ def test_the_step_with_a_smoke_set_that_has_no_script(tmp_path, origin):
 
 def test_the_steps_of_the_smoke_job_are_in_this_order():
     assert _smoke_steps() == [
+        "Remove stale package checkouts",
         "The calling repository, at its own commit",
         "The smoke set",
         "actions/setup-python@v5",
@@ -310,3 +311,18 @@ def test_the_steps_of_the_smoke_job_are_in_this_order():
         "Install",
         "Smoke",
     ]
+
+
+def test_the_cleanup_of_the_smoke_job_is_the_command_before_every_checkout():
+    """The step order above is by name: this pins the command itself, so that moving the removal (not its name) after a
+    checkout, where it would delete what was just checked out, fails here."""
+    lines = WORKFLOW.read_text(encoding="utf-8").splitlines()
+    start = next(i for i, line in enumerate(lines) if line == "  smoke:")
+    end = next((i for i in range(start + 1, len(lines)) if re.match(r"^  \S", lines[i])), len(lines))
+    body = lines[start + 1:end]
+    removals = [i for i, line in enumerate(body) if "rm -rf" in line]
+    checkouts = [i for i, line in enumerate(body) if "actions/checkout@" in line]
+    assert len(removals) == 1 and checkouts
+    assert body[removals[0]].strip() == 'run: rm -rf -- "$GITHUB_WORKSPACE/packages"'
+    assert removals[0] < min(checkouts)
+    assert body[removals[0] - 1].strip() == "- name: Remove stale package checkouts"

@@ -303,6 +303,7 @@ def test_the_step_with_a_smoke_set_that_has_no_script(tmp_path, origin):
 
 def test_the_steps_of_the_smoke_job_are_in_this_order():
     assert _smoke_steps() == [
+        "Remove stale package checkouts",
         "The calling repository, at its own commit",
         "The smoke set",
         "actions/setup-python@v5",

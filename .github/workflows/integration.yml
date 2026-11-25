@@ -12,6 +12,7 @@ name: Integration
 #     integration:
 #       uses: dmrai-lab/.github/.github/workflows/integration.yml@main
 #       with:
+#         runner: '["self-hosted", "linux"]'
 #         notify: dmipy-fit dmipy-design              # repositories to tell when this repository's main changes
 #       secrets:
 #         DMRAI_DISPATCH_TOKEN: ${{ secrets.DMRAI_DISPATCH_TOKEN }}
@@ -41,6 +42,10 @@ on:
         description: 'Exact commits, as JSON {"<package>": "<40 lowercase hex>", ...}; a pinned package ignores `others`'
         type: string
         default: ""
+      runner:
+        description: "JSON for the job's runner: a label, a list of labels, or an object with group and labels"
+        type: string
+        default: '"ubuntu-latest"'
     secrets:
       DMRAI_DISPATCH_TOKEN:
         description: "Fine-grained token: Contents read and write on the notified repositories"
@@ -51,11 +56,13 @@ permissions:
 
 jobs:
   smoke:
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 10
     env:
       JAX_PLATFORMS: cpu
     steps:
+      - name: Remove stale package checkouts
+        run: rm -rf -- "$GITHUB_WORKSPACE/packages"
       - name: The calling repository, at its own commit
         if: contains(fromJSON('["dmipy-analytic", "dmipy-replay", "dmipy-sim", "dmipy-fit", "dmipy-design", "dmipy-tract"]'), github.event.repository.name)
         uses: actions/checkout@v4
@@ -110,6 +117,10 @@ jobs:
       # six are installed without resolving each other and the third-party requirements are installed beside them.
       - name: Install
         run: |
+          venv="$(mktemp -d "$RUNNER_TEMP/integration-venv.XXXXXX")"
+          python -m venv "$venv"
+          source "$venv/bin/activate"
+          echo "$venv/bin" >> "$GITHUB_PATH"
           python -m pip install --upgrade pip
           python integration-src/integration/requirements.py packages/* > third-party.txt
           pip install -r third-party.txt pytest
@@ -121,7 +132,7 @@ jobs:
 
   notify:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && inputs.notify != ''
-    runs-on: ubuntu-latest
+    runs-on: ${{ fromJSON(inputs.runner) }}
     timeout-minutes: 2
     steps:
       - name: Notify the dependents

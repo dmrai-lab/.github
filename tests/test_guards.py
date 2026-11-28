@@ -6,6 +6,8 @@ import textwrap
 from guards import __main__ as cli
 from guards import allow, ci_coverage, hidden_defaults, history_words, private_ids
 
+_REAL_PRIVATE_IDS_CHECK = private_ids.check
+
 
 def _write(root, files):
     for name, text in files.items():
@@ -130,3 +132,28 @@ def test_only_the_vendor_finding_is_allowable_and_a_stated_entry_accepts_it(tmp_
     (tmp_path / allow.ALLOW_FILE).write_text(f"ci.py:{v.key} the CI launcher names its runner\n"
                                               f"pkg.py:{allow.line_hash('private-ids', 'see quux-7')} tried\n")
     assert [f.path for f in cli.run("private-ids", tmp_path)] == ["pkg.py"]   # a keyless finding is never allowed
+
+
+def test_private_ids_runs_unless_the_repository_is_exactly_private(tmp_path, monkeypatch, capsys):
+    word = "zzsecretzz"
+    digests = {hashlib.sha256(word.encode()).hexdigest()}
+    monkeypatch.setattr(private_ids, "check", lambda root, **kw: _REAL_PRIVATE_IDS_CHECK(root, digests=digests, patterns=[]))
+    _write(tmp_path, {"a.txt": f"see {word} here\n"})
+    assert cli.main(["private-ids", str(tmp_path)]) == 1                                   # the default is on
+    for value in ("public", "internal", "", "true", "Private"):                            # only the exact word turns it off
+        assert cli.main(["all", str(tmp_path), "--repo-visibility", value]) == 1, value
+    capsys.readouterr()
+    assert cli.main(["all", str(tmp_path), "--repo-visibility", "private"]) == 0
+    assert "private-ids: not run (the repository is private)" in capsys.readouterr().err
+    _write(tmp_path, {"pkg/__init__.py": "", "pkg/m.py": "def f(d):\n    return d.get('k', 3)\n"})
+    assert cli.main(["all", str(tmp_path), "--repo-visibility", "private"]) == 1           # the other guards still run
+
+
+def test_ci_coverage_findings_are_sorted_whatever_order_the_files_are_listed_in(tmp_path, monkeypatch):
+    _write(tmp_path, {"pyproject.toml": '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n', "tests/test_b.py": "",
+                      "other/test_c.py": "", "a/test_z.py": "", ".github/workflows/tests.yml": "run: pytest -q nothing\n"})
+    expected = ["a/test_z.py", "other/test_c.py", "tests/test_b.py"]
+    real = ci_coverage.tracked
+    for order in (sorted, lambda it: sorted(it, reverse=True)):
+        monkeypatch.setattr(ci_coverage, "tracked", lambda root, _o=order: _o(real(root)))
+        assert [f.path for f in ci_coverage.check(tmp_path)] == expected

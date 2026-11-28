@@ -51,5 +51,11 @@ jobs:
         env:
           GUARDS_SRC: ${{ inputs.src }}
           GUARDS_WORKFLOWS: ${{ inputs.workflows }}
+          # The calling repository's visibility, from the event the host delivered (not an input or a variable, so a
+          # public repository cannot claim to be private). The private-ids guard is off for a private repository only;
+          # when the event carries no repository, the value is empty and every guard runs.
+          GUARDS_REPO_PRIVATE: ${{ github.event.repository.private }}
         run: |
-          PYTHONPATH=.guards-src python -m guards all . --src "$GUARDS_SRC" --workflows "$GUARDS_WORKFLOWS"
+          visibility=public
+          if [ "$GUARDS_REPO_PRIVATE" = "true" ]; then visibility=private; fi
+          PYTHONPATH=.guards-src python -m guards all . --src "$GUARDS_SRC" --workflows "$GUARDS_WORKFLOWS" --repo-visibility "$visibility"

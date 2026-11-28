@@ -24,10 +24,17 @@ def main(argv=None):
     ap.add_argument("--src", default="", help="space-separated package paths for the AST guards (default: detected)")
     ap.add_argument("--workflows", default=" ".join(ci_coverage.DEFAULT_WORKFLOWS),
                     help="space-separated workflow files that collect the tests")
+    ap.add_argument("--repo-visibility", default="public", metavar="VISIBILITY",
+                    help="the checked repository's visibility as the host reports it; exactly 'private' turns the "
+                         "private-ids guard off (it exists so that a public repository never names private work); "
+                         "any other value, and the default, keep it on")
     ap.add_argument("--record", metavar="REASON", help="append every finding to .guards-allow with this reason")
     a = ap.parse_args(argv)
     failed = 0
     for name in (CHECKS if a.check == "all" else [a.check]):
+        if name == "private-ids" and a.repo_visibility == "private":
+            print("guards: private-ids: not run (the repository is private)", file=sys.stderr)
+            continue
         t0 = time.perf_counter()
         found = run(name, a.root, a.src.split(), a.workflows.split())
         found = sorted(found)

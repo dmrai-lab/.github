@@ -72,7 +72,7 @@ def check(root, workflows=DEFAULT_WORKFLOWS, **_):
             covered |= {f for f in files if any(_matches(f, r) for r in roots)
                         and not any(_matches(f, ig) for ig in ignores)}
     return [Finding(CHECK, f, 1, "no CI pytest invocation collects this test file", line_hash(CHECK, f))
-            for f in files if f not in covered]
+            for f in sorted(files) if f not in covered]         # sorted: the listing order differs between machines
 
 
 def stale_entries(root, raw):

@@ -147,3 +147,13 @@ def test_private_ids_runs_unless_the_repository_is_exactly_private(tmp_path, mon
     assert "private-ids: not run (the repository is private)" in capsys.readouterr().err
     _write(tmp_path, {"pkg/__init__.py": "", "pkg/m.py": "def f(d):\n    return d.get('k', 3)\n"})
     assert cli.main(["all", str(tmp_path), "--repo-visibility", "private"]) == 1           # the other guards still run
+
+
+def test_ci_coverage_findings_are_sorted_whatever_order_the_files_are_listed_in(tmp_path, monkeypatch):
+    _write(tmp_path, {"pyproject.toml": '[tool.pytest.ini_options]\ntestpaths = ["tests"]\n', "tests/test_b.py": "",
+                      "other/test_c.py": "", "a/test_z.py": "", ".github/workflows/tests.yml": "run: pytest -q nothing\n"})
+    expected = ["a/test_z.py", "other/test_c.py", "tests/test_b.py"]
+    real = ci_coverage.tracked
+    for order in (sorted, lambda it: sorted(it, reverse=True)):
+        monkeypatch.setattr(ci_coverage, "tracked", lambda root, _o=order: _o(real(root)))
+        assert [f.path for f in ci_coverage.check(tmp_path)] == expected
